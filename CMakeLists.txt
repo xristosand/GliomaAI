@@ -4,13 +4,27 @@ project(GliomaAI)
 
 #-----------------------------------------------------------------------------
 # Extension meta-information
-set(EXTENSION_HOMEPAGE "https://www.slicer.org/wiki/Documentation/Nightly/Extensions/GliomaAI")
+set(EXTENSION_HOMEPAGE "https://github.com/xristosand/GliomaAI")
+
 set(EXTENSION_CATEGORY "Radiology")
-set(EXTENSION_CONTRIBUTORS "Christos Andrianos (AnyWare Corp.)")
-set(EXTENSION_DESCRIPTION "This is an example of a simple extension")
-set(EXTENSION_ICONURL "https://www.example.com/Slicer/Extensions/GliomaAI.png")
-set(EXTENSION_SCREENSHOTURLS "https://www.example.com/Slicer/Extensions/GliomaAI/Screenshots/1.png")
-set(EXTENSION_DEPENDS "NA") # Specified as a list or "NA" if no dependencies
+
+set(EXTENSION_CONTRIBUTORS
+  "Christos Andrianos (University of West Attica)"
+)
+
+set(EXTENSION_DESCRIPTION
+  "3D Slicer extension for automated glioma grading from T1CE and FLAIR MRI using deep learning models with integrated explainable AI visualization."
+)
+
+# Θα ενημερωθεί όταν το repository γίνει public
+set(EXTENSION_ICONURL
+  "https://raw.githubusercontent.com/xristosand/GliomaAI/main/GliomaAI.png"
+)
+
+# Θα προστεθούν screenshots μετά το πρώτο release
+set(EXTENSION_SCREENSHOTURLS "")
+
+set(EXTENSION_DEPENDS "NA")
 
 #-----------------------------------------------------------------------------
 # Extension dependencies
