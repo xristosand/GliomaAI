@@ -31,6 +31,13 @@ slicerMacroBuildScriptedModule(
   )
 
 #-----------------------------------------------------------------------------
+# Install model files
+install(
+  DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/Resources/Models
+  DESTINATION ${Slicer_INSTALL_QTSCRIPTEDMODULES_LIB_DIR}/${MODULE_NAME}/Resources
+)
+
+#-----------------------------------------------------------------------------
 if(BUILD_TESTING)
 
   # Register the unittest subclass in the main script as a ctest.
