@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build
+build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Windows
+Thumbs.db
+.DS_Store
+
+# Python virtual environments
+.venv/
+venv/
+env/
+
+# Slicer temporary
+*.mrb
+
+# Ignore ML models for now
+GliomaClassifier/Resources/Models/
