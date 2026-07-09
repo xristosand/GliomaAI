@@ -235,5 +235,5 @@ Makefile
 
 *.zip
 
-# ML models (temporarily excluded from Git)
+# ML models
 GliomaClassifier/Resources/Models/
