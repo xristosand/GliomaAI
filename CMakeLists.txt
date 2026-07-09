@@ -21,8 +21,11 @@ set(EXTENSION_ICONURL
   "https://raw.githubusercontent.com/xristosand/GliomaAI/main/GliomaAI.png"
 )
 
-# Θα προστεθούν screenshots μετά το πρώτο release
-set(EXTENSION_SCREENSHOTURLS "")
+set(EXTENSION_SCREENSHOTURLS
+  "https://raw.githubusercontent.com/xristosand/GliomaAI/main/docs/screenshots/classification.png"
+  "https://raw.githubusercontent.com/xristosand/GliomaAI/main/docs/screenshots/preprocessing.png"
+  "https://raw.githubusercontent.com/xristosand/GliomaAI/main/docs/screenshots/results.png"
+)
 
 set(EXTENSION_DEPENDS "NA")
 
