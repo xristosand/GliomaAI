@@ -461,9 +461,6 @@ class GliomaClassifierWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             logging.info(f"FLAIR input: {flairNode.GetName() if flairNode else 'None'}")
 
 
-            from PreProcessing import model_manager
-            model_manager.print_models_status()
-
             selected_models = []
 
             if self.ui.proposedModelCheckBox.checked:
@@ -479,9 +476,14 @@ class GliomaClassifierWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 })
 
             if self.ui.resnet50CheckBox.checked:
+
+                from PreProcessing import model_manager
+
                 selected_models.append({
                     "name": "ResNet50",
-                    "path": self.logic.resnet50ModelPath
+                    "path": model_manager.ensure_resnet50(
+                        self.logic.resnet50ModelPath
+                    )
                 })
 
             if self.ui.densenetCheckBox.checked:

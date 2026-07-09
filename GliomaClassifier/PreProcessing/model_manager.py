@@ -1,68 +1,55 @@
 import os
-import slicer
 import logging
+import slicer
 
-MODEL_FILES = [
-    "proposed_model_final.h5",
-    "resnet10_full_torchscript_ep25.pt",
-    "resnet50_full_torchscript.pt",
-    "densenet121_full_torchscript.pt",
-    "synthstrip.1.pt",
-]
+RESNET50_URL = (
+    "https://github.com/xristosand/GliomaAI/releases/download/v1.0.0/resnet50_full_torchscript.pt"
+)
 
-def get_models_directory():
+
+def ensure_resnet50(modelPath):
     """
-    Directory where downloaded models are stored.
+    Download the ResNet50 model automatically if it is missing.
     """
 
-    modelsDir = os.path.join(
-        slicer.app.userSettings().settingsFilePath,
-        "..",
-        "GliomaAIModels"
+    if os.path.exists(modelPath):
+        logging.info("ResNet50 model already exists.")
+        print("ResNet50 model already exists.")
+        return modelPath
+
+    os.makedirs(os.path.dirname(modelPath), exist_ok=True)
+
+    logging.info("Downloading ResNet50 model...")
+    print("Downloading ResNet50 model...")
+
+    progress = slicer.util.createProgressDialog(
+        windowTitle="GliomaAI",
+        labelText="Downloading ResNet50 model...\nThis is required only once.",
+        maximum=0
     )
 
-    modelsDir = os.path.abspath(modelsDir)
+    try:
 
-    if not os.path.exists(modelsDir):
-        os.makedirs(modelsDir)
+        slicer.util.downloadFile(
+            RESNET50_URL,
+            modelPath
+        )
 
-    return modelsDir
+        logging.info(f"ResNet50 downloaded successfully: {modelPath}")
+        print(f"ResNet50 downloaded successfully:\n{modelPath}")
 
-def print_models_status():
+    except Exception as e:
 
-    print("\n----- GliomaAI Models -----")
+        progress.close()
 
-    for model in MODEL_FILES:
+        slicer.util.errorDisplay(
+            f"Unable to download the ResNet50 model.\n\n{e}"
+        )
 
-        path = get_model_path(model)
+        raise
 
-        print(f"{model}")
+    finally:
 
-        print(f"Exists : {os.path.exists(path)}")
+        progress.close()
 
-        print(path)
-
-        print()
-
-def get_model_path(model_name):
-    return os.path.join(get_models_directory(), model_name)
-
-
-def missing_models():
-    missing = []
-    for model in MODEL_FILES:
-        if not os.path.exists(get_model_path(model)):
-            missing.append(model)
-    return missing
-
-
-def models_exist():
-    return len(missing_models()) == 0
-
-
-def download_models():
-    raise NotImplementedError
-
-
-def extract_models():
-    raise NotImplementedError
+    return modelPath
