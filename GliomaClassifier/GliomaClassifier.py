@@ -461,6 +461,9 @@ class GliomaClassifierWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             logging.info(f"FLAIR input: {flairNode.GetName() if flairNode else 'None'}")
 
 
+            from PreProcessing import model_manager
+            model_manager.print_models_status()
+
             selected_models = []
 
             if self.ui.proposedModelCheckBox.checked:

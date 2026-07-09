@@ -235,5 +235,5 @@ Makefile
 
 *.zip
 
-# ML models
-GliomaClassifier/Resources/Models/
+# Large model excluded from repository
+GliomaClassifier/Resources/Models/resnet50_full_torchscript.pt
