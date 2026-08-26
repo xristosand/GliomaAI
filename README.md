@@ -1,7 +1,7 @@
 # GliomaAI
 
 <p align="center">
-  <img src="GliomaAI-icon.png" width="128" alt="GliomaAI icon">
+  <img src="GliomaClassifier/Resources/Icons/GliomaClassifier.png" width="128" alt="GliomaAI icon">
 </p>
 
 GliomaAI is an open-source [3D Slicer](https://www.slicer.org/) extension for preprocessing preoperative brain MRI, classifying gliomas as low-grade (LGG; WHO grades 2–3) or high-grade (HGG; WHO grade 4), and visualizing model attention with Gradient-weighted Class Activation Mapping (Grad-CAM).
