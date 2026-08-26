@@ -92,56 +92,151 @@ def prepare_volume(volume, common_shape=(240,240,180), target_shape=(120,120,90)
     return resized_vol
 
 
+# def restore_heatmap_to_original_shape(heatmap_xyz, preprocessing_info):
+#     heatmap_xyz = np.asarray(heatmap_xyz, dtype=np.float32)
+
+#     original_shape = tuple(preprocessing_info["original_shape_xyz"])
+#     common_shape = tuple(preprocessing_info["common_shape"])
+#     target_shape = tuple(preprocessing_info["target_shape"])
+#     was_prepared = bool(preprocessing_info.get("was_prepared", True))
+
+#     if heatmap_xyz.shape != target_shape:
+#         zoom_factors = (
+#             float(target_shape[0]) / heatmap_xyz.shape[0],
+#             float(target_shape[1]) / heatmap_xyz.shape[1],
+#             float(target_shape[2]) / heatmap_xyz.shape[2],
+#         )
+#         heatmap_xyz = zoom(heatmap_xyz, zoom_factors, order=1, prefilter=True).astype(np.float32)
+
+#     if not was_prepared or original_shape == target_shape:
+#         restored_heatmap = heatmap_xyz
+#     else:
+#         common_heatmap = heatmap_xyz
+#         if common_heatmap.shape != common_shape:
+#             zoom_factors = (
+#                 float(common_shape[0]) / common_heatmap.shape[0],
+#                 float(common_shape[1]) / common_heatmap.shape[1],
+#                 float(common_shape[2]) / common_heatmap.shape[2],
+#             )
+#             common_heatmap = zoom(common_heatmap, zoom_factors, order=1, prefilter=True).astype(np.float32)
+
+#         restored_heatmap = np.zeros(original_shape, dtype=np.float32)
+
+#         source_slices = []
+#         target_slices = []
+#         for original_size, common_size in zip(original_shape, common_shape):
+#             if original_size > common_size:
+#                 source_slices.append(slice(None))
+#                 start = (original_size - common_size) // 2
+#                 target_slices.append(slice(start, start + common_size))
+#             elif original_size < common_size:
+#                 start = (common_size - original_size) // 2
+#                 source_slices.append(slice(start, start + original_size))
+#                 target_slices.append(slice(None))
+#             else:
+#                 source_slices.append(slice(None))
+#                 target_slices.append(slice(None))
+
+#         restored_heatmap[tuple(target_slices)] = common_heatmap[tuple(source_slices)]
+
+#     restored_heatmap = restored_heatmap - restored_heatmap.min()
+#     max_val = float(restored_heatmap.max())
+#     if max_val > 0:
+#         restored_heatmap = restored_heatmap / max_val
+
+#     return restored_heatmap.astype(np.float32)
+
 def restore_heatmap_to_original_shape(heatmap_xyz, preprocessing_info):
     heatmap_xyz = np.asarray(heatmap_xyz, dtype=np.float32)
+    heatmap_xyz = np.nan_to_num(
+        heatmap_xyz,
+        nan=0.0,
+        posinf=0.0,
+        neginf=0.0,
+    )
+    heatmap_xyz = np.maximum(heatmap_xyz, 0.0)
 
-    original_shape = tuple(preprocessing_info["original_shape_xyz"])
-    common_shape = tuple(preprocessing_info["common_shape"])
-    target_shape = tuple(preprocessing_info["target_shape"])
-    was_prepared = bool(preprocessing_info.get("was_prepared", True))
+    original_shape = tuple(
+        int(v) for v in preprocessing_info["original_shape_xyz"]
+    )
+    common_shape = tuple(
+        int(v) for v in preprocessing_info["common_shape"]
+    )
+    was_prepared = bool(
+        preprocessing_info.get("was_prepared", True)
+    )
 
-    if heatmap_xyz.shape != target_shape:
-        zoom_factors = (
-            float(target_shape[0]) / heatmap_xyz.shape[0],
-            float(target_shape[1]) / heatmap_xyz.shape[1],
-            float(target_shape[2]) / heatmap_xyz.shape[2],
+    # Resize directly to the grid before centered crop/padding is reversed.
+    resize_shape = common_shape if was_prepared else original_shape
+
+    if heatmap_xyz.shape != resize_shape:
+        zoom_factors = tuple(
+            float(resize_shape[i]) / float(heatmap_xyz.shape[i])
+            for i in range(3)
         )
-        heatmap_xyz = zoom(heatmap_xyz, zoom_factors, order=1, prefilter=True).astype(np.float32)
 
-    if not was_prepared or original_shape == target_shape:
-        restored_heatmap = heatmap_xyz
+        resized_heatmap = zoom(
+            heatmap_xyz,
+            zoom_factors,
+            order=1,
+            prefilter=False,
+        ).astype(np.float32)
     else:
-        common_heatmap = heatmap_xyz
-        if common_heatmap.shape != common_shape:
-            zoom_factors = (
-                float(common_shape[0]) / common_heatmap.shape[0],
-                float(common_shape[1]) / common_heatmap.shape[1],
-                float(common_shape[2]) / common_heatmap.shape[2],
-            )
-            common_heatmap = zoom(common_heatmap, zoom_factors, order=1, prefilter=True).astype(np.float32)
+        resized_heatmap = heatmap_xyz
 
-        restored_heatmap = np.zeros(original_shape, dtype=np.float32)
+    # scipy.zoom can occasionally differ by one voxel because of rounding.
+    if resized_heatmap.shape != resize_shape:
+        raise RuntimeError(
+            f"Unexpected resized heatmap shape: "
+            f"{resized_heatmap.shape}; expected {resize_shape}."
+        )
+
+    if not was_prepared or original_shape == common_shape:
+        restored_heatmap = resized_heatmap
+    else:
+        restored_heatmap = np.zeros(
+            original_shape,
+            dtype=np.float32
+        )
 
         source_slices = []
         target_slices = []
-        for original_size, common_size in zip(original_shape, common_shape):
+
+        for original_size, common_size in zip(
+            original_shape,
+            common_shape
+        ):
             if original_size > common_size:
-                source_slices.append(slice(None))
+                # Preprocessing cropped the original volume.
                 start = (original_size - common_size) // 2
-                target_slices.append(slice(start, start + common_size))
+
+                source_slices.append(slice(None))
+                target_slices.append(
+                    slice(start, start + common_size)
+                )
+
             elif original_size < common_size:
+                # Preprocessing padded the original volume.
                 start = (common_size - original_size) // 2
-                source_slices.append(slice(start, start + original_size))
+
+                source_slices.append(
+                    slice(start, start + original_size)
+                )
                 target_slices.append(slice(None))
+
             else:
                 source_slices.append(slice(None))
                 target_slices.append(slice(None))
 
-        restored_heatmap[tuple(target_slices)] = common_heatmap[tuple(source_slices)]
+        restored_heatmap[tuple(target_slices)] = (
+            resized_heatmap[tuple(source_slices)]
+        )
 
-    restored_heatmap = restored_heatmap - restored_heatmap.min()
+    # Normalize only after the complete spatial restoration.
+    restored_heatmap = np.maximum(restored_heatmap, 0.0)
+
     max_val = float(restored_heatmap.max())
-    if max_val > 0:
-        restored_heatmap = restored_heatmap / max_val
+    if max_val > 0.0:
+        restored_heatmap /= max_val
 
     return restored_heatmap.astype(np.float32)

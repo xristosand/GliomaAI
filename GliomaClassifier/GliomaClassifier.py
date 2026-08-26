@@ -35,22 +35,20 @@ class GliomaClassifier(ScriptedLoadableModule):
 
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
-        self.parent.title = _("GliomaClassifier")  # TODO: make this more human readable by adding spaces
+        self.parent.title = _("GliomaAI")  # TODO: make this more human readable by adding spaces
         # TODO: set categories (folders where the module shows up in the module selector)
         self.parent.categories = [translate("qSlicerAbstractCoreModule", "Examples")]
         self.parent.dependencies = []  # TODO: add here list of module names that this module requires
-        self.parent.contributors = ["John Doe (AnyWare Corp.)"]  # TODO: replace with "Firstname Lastname (Organization)"
+        self.parent.contributors = ["Christos Andrianos (Department of Biomedical Engineering, University of West Attica)"]  # TODO: replace with "Firstname Lastname (Organization)"
         # TODO: update with short description of the module and a link to online module documentation
         # _() function marks text as translatable to other languages
         self.parent.helpText = _("""
 This is an example of scripted loadable module bundled in an extension.
-See more information in <a href="https://github.com/organization/projectname#GliomaClassifier">module documentation</a>.
+See more information in <a href="https://github.com/organization/projectname#GliomaAI">module documentation</a>.
 """)
         # TODO: replace with organization, grant and thanks
         self.parent.acknowledgementText = _("""
-This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
-and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
-""")
+This file was originally developed by Christos Andrianos""")
 
         # Additional initialization step after application startup is complete
         slicer.app.connect("startupCompleted()", registerSampleData)
@@ -76,8 +74,8 @@ def registerSampleData():
     # GliomaClassifier1
     SampleData.SampleDataLogic.registerCustomSampleDataSource(
         # Category and sample name displayed in Sample Data module
-        category="GliomaClassifier",
-        sampleName="GliomaClassifier1",
+        category="GliomaAI",
+        sampleName="GliomaAI1",
         # Thumbnail should have size of approximately 260x280 pixels and stored in Resources/Icons folder.
         # It can be created by Screen Capture module, "Capture all views" option enabled, "Number of images" set to "Single".
         thumbnailFileName=os.path.join(iconsPath, "GliomaClassifier1.png"),
@@ -182,6 +180,31 @@ class GliomaClassifierWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.applyButton.connect("clicked(bool)", self.onApplyButton)
         self.ui.applyButton_1.connect("clicked(bool)", self.onApplyButton_1)
 
+
+        # Preprocessing input-volume list
+        self.ui.AddInputVolume.connect(
+            "clicked()", self.onAddInputVolume)
+
+        self.ui.RemoveInputVolume.connect(
+            "clicked()", self.onRemoveInputVolume)
+
+        if hasattr(self.ui, "volumesListWidget"):
+            self.ui.volumesListWidget.connect(
+                "itemSelectionChanged()", self._checkVolumePresence)
+            self.ui.volumesListWidget.connect(
+                "itemSelectionChanged()", self._checkCanApply)
+            self.addObserver(
+                slicer.mrmlScene,
+                slicer.mrmlScene.NodeRemovedEvent,
+                self._onSceneNodeRemoved,
+            )
+
+        self._checkVolumePresence()
+
+
+        # self.ui.inputVolumesListWidget.connect(
+        #     "itemSelectionChanged()", self.updateInputVolumesUI)
+
         if hasattr(self.ui, "heatmapOpacity"):
             self.ui.heatmapOpacity.connect("valueChanged(double)", self.onHeatmapOpacityChanged)
 
@@ -211,6 +234,7 @@ class GliomaClassifierWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Refresh button state when selectors change
         if hasattr(self.ui, "inputSelector"):
             self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self._checkCanApply)
+            self.ui.inputSelector.connect("currentNodeChanged(vtkMRMLNode*)", self._checkVolumePresence)
 
         if hasattr(self.ui, "inputSelector_1"):
             self.ui.inputSelector_1.connect("currentNodeChanged(vtkMRMLNode*)", self._checkCanApply)
@@ -242,6 +266,8 @@ class GliomaClassifierWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onSceneStartClose(self, caller, event) -> None:
         """Called just before the scene is closed."""
         # Parameter node will be reset, do not use it anymore
+        if self.logic:
+            self.logic._processedResultNodeIDs.clear()
         self.setParameterNode(None)
 
     def onSceneEndClose(self, caller, event) -> None:
@@ -263,6 +289,8 @@ class GliomaClassifierWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if firstVolumeNode:
                 self._parameterNode.inputVolume = firstVolumeNode
 
+        self._checkVolumePresence()
+
     def setParameterNode(self, inputParameterNode: Optional[GliomaClassifierParameterNode]) -> None:
         """
         Set and observe parameter node.
@@ -281,15 +309,149 @@ class GliomaClassifierWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
             self._checkCanApply()
 
-    def _checkCanApply(self, caller=None, event=None) -> None:
-        inputSelectorWidget = self._getInputSelectorWidget()
-        inputNode = inputSelectorWidget.currentNode() if inputSelectorWidget else None
 
-        if inputNode:
+    def onAddInputVolume(self, checked=False) -> None:
+        """Add the selected input volume to the preprocessing list."""
+
+        volumeNode = self.ui.inputSelector.currentNode() if hasattr(self.ui, "inputSelector") else None
+
+        if volumeNode is None:
+            slicer.util.errorDisplay(_("No input volume selected."))
+            return
+
+
+        volumeList = self.ui.volumesListWidget
+        volumeID = volumeNode.GetID()
+
+        # Prevent adding the same volume twice
+        for row in range(volumeList.count):
+            item = volumeList.item(row)
+
+            if item.data(256) == volumeID:
+                slicer.util.warningDisplay(
+                    f"'{volumeNode.GetName()}' is already in the list."
+                )
+                return
+
+        # Maximum of four input volumes
+        if volumeList.count >= 4:
+            slicer.util.warningDisplay(
+                "A maximum of four input volumes can be added."
+            )
+            return
+
+        # Add the volume name to the list
+        volumeList.addItem(volumeNode.GetName())
+
+        # Store its MRML node ID internally
+        item = volumeList.item(volumeList.count - 1)
+        item.setData(256, volumeID)
+
+        self._checkVolumePresence()
+        self._checkCanApply()
+
+
+    def onRemoveInputVolume(self, checked=False) -> None:
+        """Remove the selected input volume from the preprocessing list."""
+        volumeList = self.ui.volumesListWidget
+        selectedItems = volumeList.selectedItems()
+
+        if not selectedItems:
+            slicer.util.warningDisplay(_("No input volume selected for removal."))
+            return
+
+        for item in selectedItems:
+            row = volumeList.row(item)
+            volumeList.takeItem(row)
+
+        self._checkVolumePresence()
+        self._checkCanApply()
+
+    def _pruneMissingVolumeEntries(self, removedNodeID=None) -> None:
+        """Remove preprocessing-list entries whose MRML node no longer exists in the scene."""
+        if not hasattr(self.ui, "volumesListWidget"):
+            return
+
+        volumeList = self.ui.volumesListWidget
+        staleRows = []
+
+        for row in range(volumeList.count):
+            item = volumeList.item(row)
+            if item is None:
+                continue
+
+            nodeID = item.data(256)
+            if not nodeID:
+                staleRows.append(row)
+                continue
+
+            node = slicer.mrmlScene.GetNodeByID(nodeID)
+            isMissing = node is None or not node.IsA("vtkMRMLScalarVolumeNode")
+            matchesRemovedNode = removedNodeID is not None and nodeID == removedNodeID
+
+            if isMissing or matchesRemovedNode:
+                staleRows.append(row)
+
+        for row in reversed(staleRows):
+            volumeList.takeItem(row)
+
+    def _onSceneNodeRemoved(self, caller=None, event=None) -> None:
+        """Keep the preprocessing list synchronized with the MRML scene."""
+        removedNodeID = None
+
+        if event is not None and hasattr(event, "GetID"):
+            removedNodeID = event.GetID()
+        elif caller is not None and hasattr(caller, "GetID"):
+            removedNodeID = caller.GetID()
+
+        self._pruneMissingVolumeEntries(removedNodeID)
+        self._checkVolumePresence()
+        self._checkCanApply()
+
+    def _getPreprocessingVolumeNodes(self):
+        """Return the MRML volume nodes currently listed for preprocessing."""
+        if not hasattr(self.ui, "volumesListWidget"):
+            return []
+
+        self._pruneMissingVolumeEntries()
+
+        volumeNodes = []
+        volumeList = self.ui.volumesListWidget
+
+        for row in range(volumeList.count):
+            item = volumeList.item(row)
+            if item is None:
+                continue
+
+            nodeID = item.data(256)
+            if not nodeID:
+                continue
+
+            node = slicer.mrmlScene.GetNodeByID(nodeID)
+            if node and node.IsA("vtkMRMLScalarVolumeNode"):
+                volumeNodes.append(node)
+
+        return volumeNodes
+
+    def _checkVolumePresence(self, caller=None, event=None) -> None:
+        self._pruneMissingVolumeEntries()
+
+        inputNode = self.ui.inputSelector.currentNode() if hasattr(self.ui, "inputSelector") else None
+        hasInput = inputNode is not None
+        hasListedVolumes = bool(self._getPreprocessingVolumeNodes())
+
+        self.ui.AddInputVolume.enabled = hasInput
+        self.ui.RemoveInputVolume.enabled = hasListedVolumes
+
+
+    def _checkCanApply(self, caller=None, event=None) -> None:
+        listedVolumeNodes = self._getPreprocessingVolumeNodes()
+
+        if listedVolumeNodes:
             self.ui.applyButton.toolTip = _("Compute output volume")
             self.ui.applyButton.enabled = True
         else:
-            self.ui.applyButton.toolTip = _("Select an input volume node")
+            self.ui.applyButton.toolTip = _("Add at least one volume to the preprocessing list")
             self.ui.applyButton.enabled = False
 
         # For classification, at least one input is required
@@ -417,17 +579,28 @@ class GliomaClassifierWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.ui.renderXAIin3DcheckBox.checked = False
 
     def onApplyButton(self) -> None:
-        """Run processing when user clicks "Apply" button."""
-        with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
-            inputNode = self.ui.inputSelector.currentNode() if hasattr(self.ui, "inputSelector") else None
-            if not inputNode:
-                raise RuntimeError("Input node not found.")
+        """Run processing for all volumes in the input list when "Apply" button is clicked."""
+        volumeList = self.ui.volumesListWidget
 
-            self.logic.process(inputNode,
-                               self.ui.applyRASCheckBox.checked,
-                               self.ui.applySkullStripCheckBox.checked,
-                               self.ui.applyN4CheckBox.checked,
-                               self.ui.applyNormalizationCheckBox.checked)
+
+        with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
+
+            for row in range(volumeList.count):
+                item = volumeList.item(row)
+                volumeID = item.data(256)
+
+                inputNode = slicer.mrmlScene.GetNodeByID(volumeID)
+
+                if not inputNode:
+                    raise RuntimeError(f"Input node with ID '{volumeID}' not found.")
+
+                self.logic.process(inputNode,
+                                   self.ui.applyRASCheckBox.checked,
+                                   self.ui.applySkullStripCheckBox.checked,
+                                   self.ui.applyN4CheckBox.checked,
+                                   self.ui.applyNormalizationCheckBox.checked,
+                                   showSliceOverlay=True)
+
             
     def onApplyButton_1(self) -> None:
         """Run classification when user clicks Apply button."""
@@ -460,6 +633,7 @@ class GliomaClassifierWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             logging.info(f"T1C input: {t1cNode.GetName() if t1cNode else 'None'}")
             logging.info(f"FLAIR input: {flairNode.GetName() if flairNode else 'None'}")
 
+            from PreProcessing import model_manager
 
             selected_models = []
 
@@ -472,16 +646,18 @@ class GliomaClassifierWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if self.ui.resnet10CheckBox.checked:
                 selected_models.append({
                     "name": "ResNet10",
-                    "path": self.logic.resnet10ModelPath
+                    "path": model_manager.ensure_model(
+                        "ResNet10", 
+                        self.logic.resnet10ModelPath
+                    )
                 })
 
             if self.ui.resnet50CheckBox.checked:
 
-                from PreProcessing import model_manager
-
                 selected_models.append({
                     "name": "ResNet50",
-                    "path": model_manager.ensure_resnet50(
+                    "path": model_manager.ensure_model(
+                        "ResNet50",
                         self.logic.resnet50ModelPath
                     )
                 })
@@ -489,7 +665,10 @@ class GliomaClassifierWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             if self.ui.densenetCheckBox.checked:
                 selected_models.append({
                     "name": "DenseNet121",
-                    "path": self.logic.densenetModelPath
+                    "path": model_manager.ensure_model(
+                        "DenseNet121",
+                        self.logic.densenetModelPath
+                    )
                 })
 
             all_probabilities = []
@@ -745,7 +924,6 @@ class GliomaClassifierWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
 
-
 #
 # GliomaClassifierLogic
 #
@@ -764,6 +942,7 @@ class GliomaClassifierLogic(ScriptedLoadableModuleLogic):
     def __init__(self) -> None:
         """Called when the logic class is instantiated. Can be used for initializing member variables."""
         ScriptedLoadableModuleLogic.__init__(self)
+        self._processedResultNodeIDs = []
 
         moduleDir = os.path.dirname(os.path.abspath(__file__))
 
@@ -815,7 +994,8 @@ class GliomaClassifierLogic(ScriptedLoadableModuleLogic):
                 applyRAS: bool = False,
                 applySkullStrip: bool = False,
                 applyN4: bool = False,
-                applyNormalization: bool = False) -> vtkMRMLScalarVolumeNode:
+                applyNormalization: bool = False,
+                showSliceOverlay: bool = True) -> vtkMRMLScalarVolumeNode:
         """
         Run the processing algorithm.
 
@@ -837,13 +1017,17 @@ class GliomaClassifierLogic(ScriptedLoadableModuleLogic):
         startTime = time.time()
         logging.info("Processing started")
 
-        suffix = "_RAS" if applyRAS else "_Copy"
-
+        if applyRAS:
+            suffix = "_RAS"
+            
         if applySkullStrip:
-            suffix += "_stripped"
+            suffix += "_Strip"
 
         if applyN4:
             suffix += "_N4"
+
+        if applyNormalization:
+            suffix += "_Norm"
 
         outputName = inputVolume.GetName() + suffix
 
@@ -856,6 +1040,7 @@ class GliomaClassifierLogic(ScriptedLoadableModuleLogic):
         differenceImage = None
 
         sitkImage = sitkUtils.PullVolumeFromSlicer(inputVolume)
+        backgroundMaskImage = sitk.Cast(sitk.Equal(sitkImage, 0), sitk.sitkUInt8)
 
 
 
@@ -891,6 +1076,17 @@ class GliomaClassifierLogic(ScriptedLoadableModuleLogic):
             resampler.SetDefaultPixelValue(0)
 
             sitkImage = resampler.Execute(sitkImage)
+
+            maskResampler = sitk.ResampleImageFilter()
+            maskResampler.SetInterpolator(sitk.sitkNearestNeighbor)
+            maskResampler.SetOutputSpacing(target_spacing)
+            maskResampler.SetSize(new_size)
+            maskResampler.SetOutputDirection(backgroundMaskImage.GetDirection())
+            maskResampler.SetOutputOrigin(backgroundMaskImage.GetOrigin())
+            maskResampler.SetTransform(sitk.Transform())
+            maskResampler.SetDefaultPixelValue(1)
+            backgroundMaskImage = maskResampler.Execute(backgroundMaskImage)
+
             new_spacing = sitkImage.GetSpacing()
             print("Resampled size:", sitkImage.GetSize())
             print(
@@ -902,6 +1098,7 @@ class GliomaClassifierLogic(ScriptedLoadableModuleLogic):
         if applyRAS:
             logging.info("Applying RAS orientation")
             resultImage = sitk.DICOMOrient(sitkImage, "RAS")
+            backgroundMaskImage = sitk.DICOMOrient(backgroundMaskImage, "RAS")
         else:
             logging.info("Skipping RAS orientation")
             resultImage = sitkImage
@@ -909,12 +1106,17 @@ class GliomaClassifierLogic(ScriptedLoadableModuleLogic):
         if applySkullStrip:
             logging.info("Applying skull stripping")
 
-            resultImage = apply_skull_stripping(
+            resultImage, skullMaskImage = apply_skull_stripping(
                 resultImage,
                 model_path=self.synthStripModelPath
             )
 
             resultImage = sitk.Cast(resultImage, sitk.sitkFloat32)
+            skullBackgroundMask = sitk.Cast(sitk.Equal(skullMaskImage, 0), sitk.sitkUInt8)
+            backgroundMaskImage = sitk.Cast(
+                sitk.Or(backgroundMaskImage, skullBackgroundMask),
+                sitk.sitkUInt8,
+            )
 
         else:
             logging.info("Skipping skull stripping")
@@ -949,12 +1151,46 @@ class GliomaClassifierLogic(ScriptedLoadableModuleLogic):
 
             logging.info("Skipping N4")
 
+        if backgroundMaskImage is not None:
+            tissueMask = sitk.Cast(sitk.Equal(backgroundMaskImage, 0), sitk.sitkUInt8)
+            resultImage = sitk.Mask(resultImage, tissueMask, outsideValue=0)
+
+        if applyNormalization:
+            resultImage = z_score_normalize(resultImage, backgroundMaskImage)
+
+        sitkUtils.PushVolumeToSlicer(resultImage, outputVolume)
+
+        if not outputVolume.GetDisplayNode():
+            outputVolume.CreateDefaultDisplayNodes()
+
+        if diffVolume and not diffVolume.GetDisplayNode():
+            diffVolume.CreateDefaultDisplayNodes()
+
+        for previousOutputID, previousDiffID in self._processedResultNodeIDs:
+            previousOutputNode = slicer.mrmlScene.GetNodeByID(previousOutputID)
+            if previousOutputNode and previousOutputNode.GetDisplayNode():
+                previousOutputNode.GetDisplayNode().SetVisibility(False)
+
+            if previousDiffID:
+                previousDiffNode = slicer.mrmlScene.GetNodeByID(previousDiffID)
+                if previousDiffNode and previousDiffNode.GetDisplayNode():
+                    previousDiffNode.GetDisplayNode().SetVisibility(False)
+
+        outputDisplayNode = outputVolume.GetDisplayNode()
+        if outputDisplayNode:
+            outputDisplayNode.SetVisibility(True)
+
         if diffVolume:
+            diffDisplayNode = diffVolume.GetDisplayNode()
+            if diffDisplayNode:
+                diffDisplayNode.SetVisibility(True)
+
+        if diffVolume and showSliceOverlay:
             slicer.util.setSliceViewerLayers(
                 background=outputVolume,
                 foreground=diffVolume,
                 foregroundOpacity=0.5)
-            
+
             # Configure difference volume display for better visualization
             diffDisplayNode = diffVolume.GetDisplayNode()
 
@@ -989,17 +1225,10 @@ class GliomaClassifierLogic(ScriptedLoadableModuleLogic):
                 if colorLegend:
                     colorLegend.SetTitleText("Bias Difference")
                     colorLegend.SetNumberOfLabels(4)
-
-
         else:
-
             slicer.util.setSliceViewerLayers(background=outputVolume)
 
-        
-        if applyNormalization:
-            resultImage = z_score_normalize(resultImage)
-
-        sitkUtils.PushVolumeToSlicer(resultImage, outputVolume)
+        self._processedResultNodeIDs.append((outputVolume.GetID(), diffVolume.GetID() if diffVolume else None))
 
         stopTime = time.time()
         logging.info(f"Processing completed in {stopTime-startTime:.2f} seconds")

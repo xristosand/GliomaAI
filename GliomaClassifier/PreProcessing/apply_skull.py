@@ -68,8 +68,9 @@ def apply_skull_stripping(input_sitk_image, model_path, verbose=False):
         finally:
             sys.argv = original_argv
 
-        # Load only stripped result
+        # Load stripped result and mask so downstream steps can preserve a single background.
         stripped_sitk_image = sitk.ReadImage(stripped_path)
+        mask_sitk_image = sitk.ReadImage(mask_path)
 
         # Cleanup Python refs before leaving tempdir
         del input_path, stripped_path, mask_path
@@ -78,4 +79,4 @@ def apply_skull_stripping(input_sitk_image, model_path, verbose=False):
         elapsed = time.time() - start_time
         print(f"     Execution time: {elapsed:.2f} sec")
 
-        return stripped_sitk_image
+        return stripped_sitk_image, mask_sitk_image

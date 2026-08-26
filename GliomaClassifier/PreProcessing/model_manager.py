@@ -2,48 +2,42 @@ import os
 import logging
 import slicer
 
-RESNET50_URL = (
-    "https://github.com/xristosand/GliomaAI/releases/download/v1.0.0/resnet50_full_torchscript.pt"
-)
+MODEL_URLS = {
+    "ResNet10": "https://github.com/xristosand/GliomaAI/releases/download/v1.0.0/resnet10_full_torchscript_ep25.pt",
+    "ResNet50": "https://github.com/xristosand/GliomaAI/releases/download/v1.0.0/resnet50_full_torchscript.pt",
+    "DenseNet121": "https://github.com/xristosand/GliomaAI/releases/download/v1.0.0/densenet121_full_torchscript.pt"
+}
 
+def ensure_model(model_name, model_path):
 
-def ensure_resnet50(modelPath):
-    """
-    Download the ResNet50 model automatically if it is missing.
-    """
+    if os.path.exists(model_path):
+        logging.info(f"{model_name} already exists.")
+        print(f"[GliomaAI] {model_name}: Loaded from local storage.\n")
+        return model_path
 
-    if os.path.exists(modelPath):
-        logging.info("ResNet50 model already exists.")
-        print("ResNet50 model already exists.")
-        return modelPath
+    url = MODEL_URLS[model_name]
 
-    os.makedirs(os.path.dirname(modelPath), exist_ok=True)
-
-    logging.info("Downloading ResNet50 model...")
-    print("Downloading ResNet50 model...")
+    os.makedirs(os.path.dirname(model_path), exist_ok=True)
 
     progress = slicer.util.createProgressDialog(
         windowTitle="GliomaAI",
-        labelText="Downloading ResNet50 model...\nThis is required only once.",
-        maximum=0
+        labelText=f"Downloading {model_name}...\nThis is required only once.",
+        maximum=0,
     )
 
     try:
 
-        slicer.util.downloadFile(
-            RESNET50_URL,
-            modelPath
-        )
+        slicer.util.downloadFile(url, model_path)
 
-        logging.info(f"ResNet50 downloaded successfully: {modelPath}")
-        print(f"ResNet50 downloaded successfully:\n{modelPath}")
+        logging.info(f"{model_name} downloaded successfully.")
+        print(f"[GliomaAI] {model_name}: Download completed successfully.\n")
 
     except Exception as e:
 
         progress.close()
 
         slicer.util.errorDisplay(
-            f"Unable to download the ResNet50 model.\n\n{e}"
+            f"Unable to download {model_name}.\n\n{e}"
         )
 
         raise
@@ -52,4 +46,4 @@ def ensure_resnet50(modelPath):
 
         progress.close()
 
-    return modelPath
+    return model_path

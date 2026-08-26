@@ -1,13 +1,16 @@
 import numpy as np
 import SimpleITK as sitk
 
-def z_score_normalize(sitk_image):
+
+def z_score_normalize(sitk_image, background_mask=None):
     
     """
     Apply z-score normalization to a SimpleITK image.
 
     Parameters:
     sitk_image (SimpleITK.Image): The input image to be normalized.
+    background_mask (SimpleITK.Image, optional): Binary mask where nonzero voxels
+        identify background that should be excluded from statistics and forced to 0.
 
     Returns:
     SimpleITK.Image: The z-score normalized image.
@@ -15,7 +18,12 @@ def z_score_normalize(sitk_image):
     # Convert the SimpleITK image to a NumPy array
     image_array = sitk.GetArrayFromImage(sitk_image)
 
-    mask = image_array > 0
+    if background_mask is not None:
+        background_array = sitk.GetArrayFromImage(background_mask).astype(bool)
+        mask = ~background_array
+    else:
+        mask = image_array != 0
+
     tissue_array = image_array[mask]
 
     if tissue_array.size == 0:
@@ -39,7 +47,10 @@ def z_score_normalize(sitk_image):
 
         # Apply z-score normalization only to tissue voxels.
         normalized_array = image_array.astype(np.float32, copy=True)
-        normalized_array[mask] = (tissue_array - mean_val) / std_val
+        normalized_array[mask] = (tissue_array_clipped - mean_val) / std_val
+
+    if background_mask is not None:
+        normalized_array[~mask] = 0.0
 
     # Convert the normalized array back to a SimpleITK image
     normalized_image = sitk.GetImageFromArray(normalized_array)
