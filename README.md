@@ -86,6 +86,8 @@ Load the subject's T1-CE and/or FLAIR volumes into 3D Slicer. When both modaliti
 4. Click **Apply**.
 5. Inspect the newly created output nodes in Slicer's Data module before classification.
 
+![GliomaAI preprocessing results](docs/screenshots/preprocessing_rslt.png)
+
 All volumes are resampled to 1 mm isotropic spacing. Preprocessing creates new nodes and does not overwrite the original inputs.
 
 ### 3. Run classification
@@ -94,11 +96,11 @@ All volumes are resampled to 1 mm isotropic spacing. Preprocessing creates new n
 
 1. Open the **Classification** tab.
 2. Select the preprocessed T1-CE and/or FLAIR output volumes.
-3. Select one CNN, or enable **Ensemble Mode** and select multiple CNNs.
+3. Select **Individual CNN**, or enable **Ensemble Mode** and select multiple CNNs.
 4. Optionally enable **Generate XAI** for Grad-CAM. XAI is available only for single-model inference.
 5. Optionally enable **3D Render**. This also enables Grad-CAM generation.
 6. Click **Apply**.
-7. Review the predicted class and probability. If requested, inspect the Grad-CAM overlay and adjust **Heatmap Opacity (%)**.
+7. Review the predicted class and probability. If requested, inspect the Grad-CAM overlay and adjust **Heatmap Opacity (%)**. If **3D Render** is requested, spatial inspection can be performed.
 
 Immediately before inference, each volume is centrally cropped or padded to `240 × 240 × 180` voxels and resized to the network input shape of `120 × 120 × 90`. If only one modality is supplied, the missing channel is filled with zeros. This reproduces the missing-modality strategy used during model development, but two-modality input is recommended when available.
 
