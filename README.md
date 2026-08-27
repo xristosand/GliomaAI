@@ -54,7 +54,7 @@ After the extension is accepted into the Slicer Extensions Index:
 
 | Requirement | Status |
 | --- | --- |
-| 3D Slicer | Tested with 5.6.2 and 5.12.0 stable; also tested with 5.13.0 preview |
+| 3D Slicer | Tested with 5.6.2 and 5.12.0 stable |
 | Operating system | Tested on 64-bit Windows; extension packages have also built successfully on Linux |
 | Processor | 64-bit CPU; GPU is not required |
 | Memory | 16 GB RAM used in the tested configuration |
