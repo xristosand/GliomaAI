@@ -235,5 +235,7 @@ Makefile
 
 *.zip
 
-# Large model excluded from repository
+# Downloaded model weights excluded from repository
+GliomaClassifier/Resources/Models/resnet10_full_torchscript_ep25.pt
 GliomaClassifier/Resources/Models/resnet50_full_torchscript.pt
+GliomaClassifier/Resources/Models/densenet121_full_torchscript.pt
