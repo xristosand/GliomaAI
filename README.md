@@ -135,9 +135,7 @@ MRI processing and inference occur locally inside 3D Slicer. GliomaAI does not t
 - The current task is binary LGG (G2–3) versus HGG (G4) classification.
 - Inputs are expected to be preoperative 3D T1-CE and/or FLAIR brain MRI.
 - When both modalities are supplied, correct subject pairing and spatial alignment are the user's responsibility.
-- GPU execution is not currently enabled by the extension; inference runs on CPU.
 - Grad-CAM is a model-attention visualization and not a segmentation result.
-- Performance may vary with scanner, protocol, population, artifacts, or pathology distributions that differ from the development cohorts.
 
 ## Publication and citation
 
